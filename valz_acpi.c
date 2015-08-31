@@ -63,13 +63,14 @@
  */
 
 /*
- * ACPI VALD Driver for Toshiba Libretto L3.
- *	This driver is based on acpibat driver.
+ * ACPI VALZ Driver for Toshiba dynabook R63/PS
+ *	This driver is based on acpibat driver
+ *	and FreeBSD sys/dev/acpi_support/acpi_toshiba.c.
  */
 
 /*
  * Obtain information of Toshiba "GHCI" Method from next URL.
- *           http://www.buzzard.org.uk/toshiba/docs.html
+ *           http://www.buzzard.me.uk/toshiba/docs.html
  *           http://memebeam.org/toys/ToshibaAcpiDriver
  */
 
@@ -85,7 +86,7 @@ __KERNEL_RCSID(0, "$NetBSD: vald_acpi.c,v 1.4 2010/04/15 07:02:24 jruoho Exp $")
 #include <dev/acpi/acpivar.h>
 
 #define _COMPONENT          ACPI_RESOURCE_COMPONENT
-ACPI_MODULE_NAME            ("vald_acpi")
+ACPI_MODULE_NAME            ("valz_acpi")
 
 #define GHCI_WORDS 6
 #define GHCI_FIFO_EMPTY  0x8c00

@@ -96,8 +96,12 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define HCI_GET			0xff00
 
 #define HCI_WORDS		6
-#define HCI_FIFO_EMPTY		0x8c00
+
+/* Return codes */
+#define HCI_SUCCESS		0x0000
+#define HCI_FAILURE		0x1000
 #define HCI_NOT_SUPPORTED	0x8000
+#define HCI_FIFO_EMPTY		0x8c00
 
 #define GHCI_BACKLIGHT		0x0002
 #define GHCI_ACADAPTOR		0x0003

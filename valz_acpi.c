@@ -85,12 +85,12 @@ __KERNEL_RCSID(0, "$NetBSD: vald_acpi.c,v 1.4 2010/04/15 07:02:24 jruoho Exp $")
 #include <dev/acpi/acpireg.h>
 #include <dev/acpi/acpivar.h>
 
-#define _COMPONENT          ACPI_RESOURCE_COMPONENT
-ACPI_MODULE_NAME            ("valz_acpi")
+#define _COMPONENT		ACPI_RESOURCE_COMPONENT
+ACPI_MODULE_NAME		("valz_acpi")
 
-#define GHCI_WORDS 6
-#define GHCI_FIFO_EMPTY  0x8c00
-#define GHCI_NOT_SUPPORT  0x8000
+#define HCI_WORDS		6
+#define HCI_FIFO_EMPTY		0x8c00
+#define HCI_NOT_SUPPORTED	0x8000
 
 #define GHCI_BACKLIGHT		0x0002
 #define GHCI_ACADAPTOR		0x0003

@@ -91,6 +91,10 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define METHOD_HCI		"GHCI"
 #define METHOD_HCI_ENABLE	"ENAB"
 
+/* Operations */
+#define HCI_SET			0xfe00
+#define HCI_GET			0xff00
+
 #define HCI_WORDS		6
 #define HCI_FIFO_EMPTY		0x8c00
 #define HCI_NOT_SUPPORTED	0x8000

@@ -95,8 +95,6 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define HCI_SET			0xfe00
 #define HCI_GET			0xff00
 
-#define HCI_WORDS		6
-
 /* Return codes */
 #define HCI_SUCCESS		0x0000
 #define HCI_FAILURE		0x1000
@@ -174,14 +172,19 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define FN_TAB_PRESS		0x010f
 #define FN_TAB_RELEASE		(FN_TAB_PRESS + FN_RELEASE_OFFSET)
 
-#define GHCI_ON			0x0001
-#define GHCI_OFF		0x0000
-#define GHCI_ENABLE		0x0001
-#define GHCI_DISABLE		0x0000
+/* HCI register definitions */
+#define HCI_WORDS		6 /* number of registers */
+#define HCI_REG_AX		0 /* Operation -> return value */
+#define HCI_REG_BX		1 /* Function */
+#define HCI_REG_CX		2 /* Argument (in or out) */
+#define HCI_REG_DX		2 /* unused */
+#define HCI_REG_SI		3 /* unused */
+#define HCI_REG_DI		4 /* unused */
 
-#define GHCI_CRT		0x0002
-#define GHCI_LCD		0x0001
-
+#define HCI_ON			0x0001
+#define HCI_OFF			0x0000
+#define HCI_ENABLE		0x0001
+#define HCI_DISABLE		0x0000
 
 struct vald_acpi_softc {
 	device_t sc_dev;		/* base device glue */
@@ -197,7 +200,7 @@ struct vald_acpi_softc {
 };
 
 static const char * const vald_acpi_hids[] = {
-	"TOS6200",
+	"TOS6208",
 	NULL
 };
 

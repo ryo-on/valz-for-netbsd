@@ -88,6 +88,9 @@ __KERNEL_RCSID(0, "$NetBSD: vald_acpi.c,v 1.4 2010/04/15 07:02:24 jruoho Exp $")
 #define _COMPONENT		ACPI_RESOURCE_COMPONENT
 ACPI_MODULE_NAME		("valz_acpi")
 
+#define METHOD_HCI		"GHCI"
+#define METHOD_HCI_ENABLE	"ENAB"
+
 #define HCI_WORDS		6
 #define HCI_FIFO_EMPTY		0x8c00
 #define HCI_NOT_SUPPORTED	0x8000

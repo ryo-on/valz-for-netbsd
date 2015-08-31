@@ -124,6 +124,55 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define HCI_CPU_SPEED_SFT	(16 - HCI_CPU_SPEED_BITS)
 #define HCI_CPU_SPEED_MAX	((1 << HCI_CPU_SPEED_BITS) - 1)
 
+/* Key press/release events */
+
+/* Key press/release events */
+#define FN_RELEASE_OFFSET	0x80
+#  if 0
+/* Not used */
+#define FN_PRESS		0x01ff
+#define FN_RELEASE		0x0100
+#  endif
+#define FN_ESC_PRESS		0x0101
+#define FN_ESC_RELEASE		(FN_ESC_PRESS + FN_RELEASE_OFFSET)
+#define FN_F1_PRESS		0x013b
+#define FN_F1_RELEASE		(FN_F1_PRESS + FN_RELEASE_OFFSET)
+#define FN_F2_PRESS		0x013c
+#define FN_F2_RELEASE		(FN_F2_PRESS + FN_RELEASE_OFFSET)
+#define FN_F3_PRESS		0x013d
+#define FN_F3_RELEASE		(FN_F3_PRESS + FN_RELEASE_OFFSET)
+#define FN_F4_PRESS		0x013e
+#define FN_F4_RELEASE		(FN_F4_PRESS + FN_RELEASE_OFFSET)
+#define FN_F5_PRESS		0x013f
+#define FN_F5_RELEASE		(FN_F5_PRESS + FN_RELEASE_OFFSET)
+#define FN_F6_PRESS		0x0140
+#define FN_F6_RELEASE		(FN_F6_PRESS + FN_RELEASE_OFFSET)
+#define FN_F7_PRESS		0x0141
+#define FN_F7_RELEASE		(FN_F7_PRESS + FN_RELEASE_OFFSET)
+#define FN_F8_PRESS		0x0142
+#define FN_F8_RELEASE		(FN_F8_PRESS + FN_RELEASE_OFFSET)
+#define FN_F9_PRESS		0x0143
+#define FN_F9_RELEASE		(FN_F9_PRESS + FN_RELEASE_OFFSET)
+/* Toggle */
+#define FN_F10_ON		0x1bb0
+#define FN_F10_OFF		0x1bb1
+#define FN_F11_ON		0x1bb2
+#define FN_F11_OFF		0x1bb3
+/* Fn+F12 does not emit keycode */
+/* dynabook R63/PS does not have KANJI keytop print */
+#define FN_KNJ_PRESS		0x0129
+#define FN_KNJ_RELEASE		(FN_KNJ_PRESS + FN_RELEASE_OFFSET)
+#define FN_1_PRESS		0x0102
+#define FN_1_RELEASE		(FN_1_PRESS + FN_RELEASE_OFFSET)
+#define FN_2_PRESS		0x0103
+#define FN_2_RELEASE		(FN_2_PRESS + FN_RELEASE_OFFSET)
+/* Fn+3 and Fn+4 do not emit keybode */
+#define FN_Z_PRESS		0x012c
+#define FN_Z_RELEASE		(FN_1_PRESS + FN_RELEASE_OFFSET)
+#define FN_SPACE_PRESS		0x0139
+#define FN_SPACE_RELEASE	(FN_1_PRESS + FN_RELEASE_OFFSET)
+#define FN_TAB_PRESS		0x010f
+#define FN_TAB_RELEASE		(FN_TAB_PRESS + FN_RELEASE_OFFSET)
 
 #define GHCI_ON			0x0001
 #define GHCI_OFF		0x0000

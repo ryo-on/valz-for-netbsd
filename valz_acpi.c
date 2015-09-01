@@ -614,19 +614,9 @@ valz_acpi_libright_get_bus(ACPI_HANDLE handle, uint32_t level,
 			}
 		}
 		if (sc->sc_ac_status == 1) /* AC adaptor on when attach */
-			sc->lcd_index = sc->lcd_num -1; /* MAX Brightness */
+			sc->lcd_index = HCI_LCD_BRIGHTNESS_MAX;
 		else
 			sc->lcd_index = 3;
-
-#ifdef ACPI_DEBUG
-		pi = sc->lcd_level;
-		printf("\t Full Power Level: %d\n", *pi);
-		printf("\t on Battery Level: %d\n", *(pi+1));
-		printf("\t Possible Level: ");
-		for (i = 2;i < sc->lcd_num; i++)
-			printf(" %d", *(pi+i));
-		printf("\n");
-#endif
 	}
 
 	if (buf.Pointer)
@@ -683,7 +673,7 @@ valz_acpi_libright_set(struct valz_acpi_softc *sc, int UpDown)
 	backlight_new = backlight;
 	if (UpDown == LIBRIGHT_UP) {
 		if (backlight == 1)
-			sc->lcd_index++;
+			sc->lcd_index <<= HCI_LCD_BRIGHTNESS_SFT;
 		else {
 			/* backlight on */
 			backlight_new = 1;
@@ -691,7 +681,7 @@ valz_acpi_libright_set(struct valz_acpi_softc *sc, int UpDown)
 		}
 	} else if (UpDown == LIBRIGHT_DOWN) {
 		if ((backlight == 1) && (sc->lcd_index > 2))
-			sc->lcd_index--;
+			sc->lcd_index >>= HCI_LCD_BRIGHTNESS_SFT;
 		else {
 			/* backlight off */
 			backlight_new = 0;
@@ -719,7 +709,8 @@ valz_acpi_libright_set(struct valz_acpi_softc *sc, int UpDown)
 		pi = sc->lcd_level;
 		bright = *(pi + sc->lcd_index);
 
-		rv = valz_acpi_bcm_set(sc->lcd_handle, bright);
+//		rv = valz_acpi_bcm_set(sc->lcd_handle, bright);
+		rv = valz_acpi_bcm_set(sc->sc_node->ad_handle, bright);
 		if (ACPI_FAILURE(rv))
 			aprint_error_dev(sc->sc_dev, "unable to evaluate _BCM: %s\n",
 			    AcpiFormatException(rv));
@@ -787,15 +778,29 @@ static ACPI_STATUS
 valz_acpi_bcm_set(ACPI_HANDLE handle, uint32_t bright)
 {
 	ACPI_STATUS rv;
-	ACPI_OBJECT Arg;
+	ACPI_OBJECT Arg[HCI_WORDS];
 	ACPI_OBJECT_LIST ArgList;
+	int i;
 
-	ArgList.Count = 1;
-	ArgList.Pointer = &Arg;
+	bright <<= HCI_LCD_BRIGHTNESS_SFT;
 
-	Arg.Type = ACPI_TYPE_INTEGER;
-	Arg.Integer.Value = bright;
+	for (i = 0; i < HCI_WORDS; i++) {
+		Arg[i].Type = ACPI_TYPE_INTEGER;
+		Arg[i].Integer.Value = 0;
+	}
 
-	rv = AcpiEvaluateObject(handle, "_BCM", &ArgList, NULL);
+	Arg[0].Integer.Value = 0xfe00;
+	Arg[1].Integer.Value = HCI_LCD_BACKLIGHT;
+	Arg[2].Integer.Value = bright;
+
+	ArgList.Count = HCI_WORDS;
+	ArgList.Pointer = Arg;
+
+//	rv = AcpiEvaluateObject(handle, "_BCM", &ArgList, NULL);
+	rv = AcpiEvaluateObject(handle, METHOD_HCI, &ArgList, NULL);
+	if (ACPI_FAILURE(rv)) {
+		aprint_error("BCM: failed to evaluate GHCI: %s\n",
+		    AcpiFormatException(rv));
+	}
 	return (rv);
 }

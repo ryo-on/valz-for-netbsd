@@ -411,12 +411,12 @@ valz_acpi_event(void *arg)
 				valz_acpi_video_switch(sc);
 				break;
 			case FN_F6_PRESS:
-				valz_acpi_libright_set(sc, LIBRIGHT_UP);
-				/* Brightness up */
-				break;
-			case FN_F7_PRESS:
 				/* Brightness down */
 				valz_acpi_libright_set(sc, LIBRIGHT_DOWN);
+				break;
+			case FN_F7_PRESS:
+				/* Brightness up */
+				valz_acpi_libright_set(sc, LIBRIGHT_UP);
 				break;
 			case FN_F8_PRESS:
 				/* Toggle WiFi and Bluetooth */
@@ -673,7 +673,7 @@ valz_acpi_libright_set(struct valz_acpi_softc *sc, int UpDown)
 	backlight_new = backlight;
 	if (UpDown == LIBRIGHT_UP) {
 		if (backlight == 1)
-			sc->lcd_index <<= HCI_LCD_BRIGHTNESS_SFT;
+			sc->lcd_index++;
 		else {
 			/* backlight on */
 			backlight_new = 1;
@@ -681,7 +681,7 @@ valz_acpi_libright_set(struct valz_acpi_softc *sc, int UpDown)
 		}
 	} else if (UpDown == LIBRIGHT_DOWN) {
 		if ((backlight == 1) && (sc->lcd_index > 2))
-			sc->lcd_index >>= HCI_LCD_BRIGHTNESS_SFT;
+			sc->lcd_index--;
 		else {
 			/* backlight off */
 			backlight_new = 0;
@@ -690,10 +690,10 @@ valz_acpi_libright_set(struct valz_acpi_softc *sc, int UpDown)
 	}
 
 	/* Check index value. */
-	if (sc->lcd_index < 2)
-		sc->lcd_index = 2; /* index Minium Value */
+	if (sc->lcd_index < 0)
+		sc->lcd_index = 0; /* index Minium Value */
 	if (sc->lcd_index >= sc->lcd_num)
-		sc->lcd_index = sc->lcd_num - 1;
+		sc->lcd_index = sc->lcd_num;
 
 	/* Set LCD backlight,if status is changed. */
 	if (backlight_new != backlight) {
@@ -709,7 +709,6 @@ valz_acpi_libright_set(struct valz_acpi_softc *sc, int UpDown)
 		pi = sc->lcd_level;
 		bright = *(pi + sc->lcd_index);
 
-//		rv = valz_acpi_bcm_set(sc->lcd_handle, bright);
 		rv = valz_acpi_bcm_set(sc->sc_node->ad_handle, bright);
 		if (ACPI_FAILURE(rv))
 			aprint_error_dev(sc->sc_dev, "unable to evaluate _BCM: %s\n",
@@ -796,7 +795,6 @@ valz_acpi_bcm_set(ACPI_HANDLE handle, uint32_t bright)
 	ArgList.Count = HCI_WORDS;
 	ArgList.Pointer = Arg;
 
-//	rv = AcpiEvaluateObject(handle, "_BCM", &ArgList, NULL);
 	rv = AcpiEvaluateObject(handle, METHOD_HCI, &ArgList, NULL);
 	if (ACPI_FAILURE(rv)) {
 		aprint_error("BCM: failed to evaluate GHCI: %s\n",

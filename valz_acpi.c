@@ -119,8 +119,8 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define METHOD_HCI_ENABLE	"ENAB"
 
 /* Operations */
-#define HCI_SET			0xfe00
-#define HCI_GET			0xff00
+#define HCI_SET			0xff00
+#define HCI_GET			0xfe00
 
 /* Return codes */
 #define HCI_SUCCESS		0x0000
@@ -242,7 +242,8 @@ static void	valz_acpi_attach(device_t, device_t, void *);
 static void	valz_acpi_event(void *);
 static void	valz_acpi_notify_handler(ACPI_HANDLE, uint32_t, void *);
 
-#define ACPI_NOTIFY_ValzStatusChanged	0x80
+#define ACPI_NOTIFY_ValzHotkeyPressed	0x80
+#define ACPI_NOTIFY_ValzLidClosed	0x8f
 
 /* HCI manipulation */
 static ACPI_STATUS	valz_acpi_hci_get(struct valz_acpi_softc *, uint32_t,
@@ -362,8 +363,12 @@ valz_acpi_notify_handler(ACPI_HANDLE handle, uint32_t notify, void *context)
 
 	switch (notify) {
 
-	case ACPI_NOTIFY_ValzStatusChanged:
+	case ACPI_NOTIFY_ValzHotkeyPressed:
 		(void)AcpiOsExecute(OSL_NOTIFY_HANDLER, valz_acpi_event, sc);
+		break;
+
+	case ACPI_NOTIFY_ValzLidClosed:
+		/* Lid closed */
 		break;
 
 	default:
@@ -482,7 +487,7 @@ valz_acpi_hci_get(struct valz_acpi_softc *sc,
 		Arg[i].Integer.Value = 0;
 	}
 
-	Arg[0].Integer.Value = 0xfe00;
+	Arg[0].Integer.Value = HCI_GET;
 	Arg[1].Integer.Value = reg;
 	Arg[2].Integer.Value = 0;
 
@@ -540,7 +545,7 @@ valz_acpi_hci_set(struct valz_acpi_softc *sc,
 		Arg[i].Integer.Value = 0;
 	}
 
-	Arg[0].Integer.Value = 0xff00;
+	Arg[0].Integer.Value = HCI_SET;
 	Arg[1].Integer.Value = reg;
 	Arg[2].Integer.Value = value;
 
@@ -770,8 +775,6 @@ valz_acpi_video_switch(struct valz_acpi_softc *sc)
 
 /*
  * valz_acpi_bcm_set:
- *
- *	Set LCD brightness via "_BCM" Method.
  */
 static ACPI_STATUS
 valz_acpi_bcm_set(ACPI_HANDLE handle, uint32_t bright)
@@ -788,8 +791,8 @@ valz_acpi_bcm_set(ACPI_HANDLE handle, uint32_t bright)
 		Arg[i].Integer.Value = 0;
 	}
 
-	Arg[0].Integer.Value = 0xfe00;
-	Arg[1].Integer.Value = HCI_LCD_BACKLIGHT;
+	Arg[0].Integer.Value = HCI_SET;
+	Arg[1].Integer.Value = HCI_LCD_BRIGHTNESS;
 	Arg[2].Integer.Value = bright;
 
 	ArgList.Count = HCI_WORDS;

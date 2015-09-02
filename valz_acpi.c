@@ -259,6 +259,8 @@ static void		valz_acpi_libright_set(struct valz_acpi_softc *, int);
 static void		valz_acpi_video_switch(struct valz_acpi_softc *);
 
 static ACPI_STATUS	valz_acpi_bcm_set(ACPI_HANDLE, uint32_t);
+static ACPI_STATUS	valz_lcd_backlight_set(struct valz_acpi_softc *,
+						uint32_t);
 
 CFATTACH_DECL_NEW(valz_acpi, sizeof(struct valz_acpi_softc),
     valz_acpi_match, valz_acpi_attach, NULL, NULL);
@@ -397,10 +399,14 @@ valz_acpi_event(void *arg)
 
 			switch (value) {
 			case FN_ESC_PRESS:
-				/*  */
+				/* Mute speaker */
+				aprint_normal("Fn+ESC\n");
+				valz_lcd_backlight_set(sc, HCI_ON);
 				break;
 			case FN_F1_PRESS:
-				/* Mute speaker */
+				/* Instant security */
+				aprint_normal("Fn+F1\n");
+				valz_lcd_backlight_set(sc, HCI_OFF);
 				break;
 			case FN_F2_PRESS:
 				/* Toggle power plan */
@@ -804,4 +810,21 @@ valz_acpi_bcm_set(ACPI_HANDLE handle, uint32_t bright)
 		    AcpiFormatException(rv));
 	}
 	return (rv);
+}
+
+/*
+ * LCD backlight control with HCI_ON/HCI_OFF flags
+ */
+static ACPI_STATUS
+valz_lcd_backlight_set(struct valz_acpi_softc *sc, uint32_t flag)
+{
+	ACPI_STATUS rv;
+	uint32_t result;
+
+	rv = valz_acpi_hci_set(sc, HCI_LCD_BACKLIGHT, flag, &result);
+	if (ACPI_FAILURE(rv) && result != 0)
+		aprint_error_dev(sc->sc_dev,
+				"Cannot set backlight status: %s\n",
+				AcpiFormatException(rv));
+	return rv;
 }

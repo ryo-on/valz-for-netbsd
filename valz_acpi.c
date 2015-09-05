@@ -232,10 +232,10 @@ static void	valz_acpi_notify_handler(ACPI_HANDLE, uint32_t, void *);
 #define ACPI_NOTIFY_ValzLidClosed	0x8f
 
 /* HCI manipulation */
-static ACPI_STATUS	valz_acpi_hci_get(struct valz_acpi_softc *, uint32_t,
-					uint32_t *, uint32_t *);
-static ACPI_STATUS	valz_acpi_hci_set(struct valz_acpi_softc *, uint32_t,
-					uint32_t, uint32_t *);
+static ACPI_STATUS	valz_acpi_hsci_get(struct valz_acpi_softc *, uint32_t,
+					uint32_t, uint32_t *, uint32_t *);
+static ACPI_STATUS	valz_acpi_hsci_set(struct valz_acpi_softc *, uint32_t,
+					uint32_t, uint32_t, uint32_t *);
 
 static ACPI_STATUS	valz_acpi_libright_get_bus(ACPI_HANDLE, uint32_t,
 					void *, void **);
@@ -305,7 +305,7 @@ valz_acpi_attach(device_t parent, device_t self, void *aux)
 		    (sc->sc_ac_status == 0 ? "not ": ""));
 
 	/* Get LCD backlight status. */
-	rv = valz_acpi_hci_get(sc, HCI_LCD_BACKLIGHT, &value, &result);
+	rv = valz_acpi_hsci_get(sc, HCI_GET, HCI_LCD_BACKLIGHT, &value, &result);
 	if (ACPI_SUCCESS(rv)) {
 		if (result != 0)
 			aprint_error_dev(self, "can't get backlight status error=%d\n",
@@ -316,13 +316,13 @@ valz_acpi_attach(device_t parent, device_t self, void *aux)
 	}
 
 	/* Enable SystemEventFIFO,HotkeyEvent */
-	rv = valz_acpi_hci_set(sc, HCI_SYSTEM_EVENT_FIFO, HCI_ENABLE,
+	rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_SYSTEM_EVENT_FIFO, HCI_ENABLE,
 	    &result);
 	if (ACPI_SUCCESS(rv) && result != 0)
 		aprint_error_dev(self, "can't enable SystemEventFIFO error=%d\n",
 		    result);
 
-	rv = valz_acpi_hci_set(sc, HCI_HOTKEY_EVENT, HCI_ENABLE, &result);
+	rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_HOTKEY_EVENT, HCI_ENABLE, &result);
 	if (ACPI_SUCCESS(rv) && result != 0)
 		aprint_error_dev(self, "can't enable HotkeyEvent error=%d\n",
 		    result);
@@ -387,7 +387,7 @@ valz_acpi_event(void *arg)
 	uint32_t value, result;
 
 	while(1) {
-		rv = valz_acpi_hci_get(sc, HCI_SYSTEM_EVENT_FIFO, &value,
+		rv = valz_acpi_hsci_get(sc, HCI_GET, HCI_SYSTEM_EVENT_FIFO, &value,
 		    &result);
 		if (ACPI_SUCCESS(rv) && result == 0) {
 
@@ -473,12 +473,12 @@ valz_acpi_event(void *arg)
 }
 
 /*
- * valz_acpi_hci_get:
+ * valz_acpi_hsci_get:
  *
  *	Get value via "GHCI" Method.
  */
 static ACPI_STATUS
-valz_acpi_hci_get(struct valz_acpi_softc *sc,
+valz_acpi_hsci_get(struct valz_acpi_softc *sc, uint32_t function,
     uint32_t reg, uint32_t *value, uint32_t *result)
 {
 	ACPI_STATUS rv;
@@ -493,7 +493,7 @@ valz_acpi_hci_get(struct valz_acpi_softc *sc,
 		Arg[i].Integer.Value = 0;
 	}
 
-	Arg[0].Integer.Value = HCI_GET;
+	Arg[0].Integer.Value = function;
 	Arg[1].Integer.Value = reg;
 	Arg[2].Integer.Value = 0;
 
@@ -530,12 +530,12 @@ valz_acpi_hci_get(struct valz_acpi_softc *sc,
 }
 
 /*
- * valz_acpi_hci_set:
+ * valz_acpi_hsci_set:
  *
  *	Set value via "GHCI" Method.
  */
 static ACPI_STATUS
-valz_acpi_hci_set(struct valz_acpi_softc *sc,
+valz_acpi_hsci_set(struct valz_acpi_softc *sc, uint32_t function,
     uint32_t reg, uint32_t value, uint32_t *result)
 {
 	ACPI_STATUS rv;
@@ -551,7 +551,7 @@ valz_acpi_hci_set(struct valz_acpi_softc *sc,
 		Arg[i].Integer.Value = 0;
 	}
 
-	Arg[0].Integer.Value = HCI_SET;
+	Arg[0].Integer.Value = function;
 	Arg[1].Integer.Value = reg;
 	Arg[2].Integer.Value = value;
 
@@ -676,7 +676,7 @@ valz_acpi_libright_set(struct valz_acpi_softc *sc, int UpDown)
 		return;
 
 	/* Get LCD backlight status. */
-	rv = valz_acpi_hci_get(sc, HCI_LCD_BACKLIGHT, &backlight, &result);
+	rv = valz_acpi_hsci_get(sc, HCI_GET, HCI_LCD_BACKLIGHT, &backlight, &result);
 	if (ACPI_FAILURE(rv) || result != 0)
 		return;
 
@@ -708,7 +708,7 @@ valz_acpi_libright_set(struct valz_acpi_softc *sc, int UpDown)
 
 	/* Set LCD backlight,if status is changed. */
 	if (backlight_new != backlight) {
-		rv = valz_acpi_hci_set(sc, HCI_LCD_BACKLIGHT, backlight_new,
+		rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_LCD_BACKLIGHT, backlight_new,
 		    &result);
 		if (ACPI_SUCCESS(rv) && result != 0)
 			aprint_error_dev(sc->sc_dev, "can't set LCD backlight %s error=%x\n",
@@ -747,7 +747,7 @@ valz_acpi_video_switch(struct valz_acpi_softc *sc)
 	uint32_t	value, result;
 
 	/* Get video status. */
-	rv = valz_acpi_hci_get(sc, HCI_DISPLAY_DEVICE, &value, &result);
+	rv = valz_acpi_hsci_get(sc, HCI_GET, HCI_DISPLAY_DEVICE, &value, &result);
 	if (ACPI_FAILURE(rv))
 		return;
 	if (result != 0) {
@@ -821,7 +821,7 @@ valz_lcd_backlight_set(struct valz_acpi_softc *sc, uint32_t flag)
 	ACPI_STATUS rv;
 	uint32_t result;
 
-	rv = valz_acpi_hci_set(sc, HCI_LCD_BACKLIGHT, flag, &result);
+	rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_LCD_BACKLIGHT, flag, &result);
 	if (ACPI_FAILURE(rv) && result != 0)
 		aprint_error_dev(sc->sc_dev,
 				"Cannot set backlight status: %s\n",
@@ -846,7 +846,7 @@ valz_lcd_brightness_set(struct valz_acpi_softc *sc, uint32_t arg)
 		arg = 8;
 #endif
 
-	rv = valz_acpi_hci_get(sc, HCI_LCD_BRIGHTNESS, &value, &result);
+	rv = valz_acpi_hsci_get(sc, HCI_GET, HCI_LCD_BRIGHTNESS, &value, &result);
 	if (ACPI_FAILURE(rv) || result != 0) {
 		aprint_error_dev(sc->sc_dev,
 				"Cannot set brightness status: %x %s\n",
@@ -856,7 +856,7 @@ valz_lcd_brightness_set(struct valz_acpi_softc *sc, uint32_t arg)
 
 	aprint_normal("0x%x\n", value);
 
-	rv = valz_acpi_hci_set(sc, HCI_LCD_BRIGHTNESS, arg, &result);
+	rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_LCD_BRIGHTNESS, arg, &result);
 	if (ACPI_FAILURE(rv) || result != 0)
 		aprint_error_dev(sc->sc_dev,
 				"Cannot set brightness status: %x %s\n",
@@ -878,7 +878,7 @@ valz_kbd_backlight_set(struct valz_acpi_softc *sc, uint32_t flag)
 	ACPI_STATUS rv;
 	uint32_t result;
 
-	rv = valz_acpi_hci_set(sc, HCI_KBD_BACKLIGHT, flag, &result);
+	rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_KBD_BACKLIGHT, flag, &result);
 	if (ACPI_FAILURE(rv) && result != 0)
 		aprint_error_dev(sc->sc_dev,
 				"Cannot set kdb backlight status: %s\n",
@@ -896,7 +896,7 @@ sci_open(struct valz_acpi_softc *sc)
 	ACPI_STATUS rv;
 	uint32_t result;
 
-	rv = valz_acpi_hci_set(sc, SCI_CLOSE, 0, &result);
+	rv = valz_acpi_hsci_set(sc, SCI_OPEN, 0, 0, &result);
 	if (ACPI_FAILURE(rv)) {
 		aprint_error("SCI: ACPI set error\n");
 	} else {
@@ -931,7 +931,7 @@ sci_close(struct valz_acpi_softc *sc)
 	ACPI_STATUS rv;
 	uint32_t result;
 
-	rv = valz_acpi_hci_set(sc, SCI_CLOSE, 0, &result);
+	rv = valz_acpi_hsci_set(sc, SCI_CLOSE, 0, 0, &result);
 	if (ACPI_FAILURE(rv)) {
 		aprint_error("SCI: ACPI set error\n");
 	} else {

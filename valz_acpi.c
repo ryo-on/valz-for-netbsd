@@ -91,12 +91,15 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define METHOD_HCI_ENABLE	"ENAB"
 
 /* Operations */
+/* Get */
 #define HCI_GET			0xfe00
-#define HCI_SET			0xff00
+#define SCI_CHECK		0xf000
+#define SCI_GET			0xf300
 
+/* Set */
+#define HCI_SET			0xff00
 #define SCI_OPEN		0xf100
 #define SCI_CLOSE		0xf200
-#define SCI_GET			0xf300
 #define SCI_SET			0xf400
 
 /* Return codes */
@@ -211,6 +214,8 @@ struct valz_acpi_softc {
 	int lcd_index;			/* index of lcd brightness table */
 
 	ACPI_INTEGER sc_ac_status;	/* AC adaptor status when attach */
+
+	uint32_t touchpad_status;	/* Touchpad status, enable/disable */
 };
 
 static const char * const valz_acpi_hids[] = {
@@ -255,6 +260,8 @@ static ACPI_STATUS	valz_kbd_backlight_set(struct valz_acpi_softc *,
 
 static ACPI_STATUS	sci_open(struct valz_acpi_softc *);
 static ACPI_STATUS	sci_close(struct valz_acpi_softc *);
+
+static ACPI_STATUS	valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc);
 
 CFATTACH_DECL_NEW(valz_acpi, sizeof(struct valz_acpi_softc),
     valz_acpi_match, valz_acpi_attach, NULL, NULL);
@@ -434,6 +441,7 @@ valz_acpi_event(void *arg)
 				break;
 			case FN_F9_PRESS:
 				/* Toggle touchpad */
+				valz_acpi_touchpad_toggle(sc);
 				break;
 			case FN_F10_ON:
 				/* Enable arrow key mode */
@@ -863,7 +871,22 @@ valz_lcd_brightness_set(struct valz_acpi_softc *sc, uint32_t arg)
 				value, AcpiFormatException(rv));
 	aprint_normal("arg: 0x%x, value: 0x%x\n", arg, value);
 
+	/* XXX */
 	sci_open(sc);
+	rv = valz_acpi_hsci_get(sc, SCI_CHECK, 0, &value, &result);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot get SCI support status: %x %s\n",
+				value, AcpiFormatException(rv));
+	aprint_normal("value: 0x%x\n", value);
+
+	rv = valz_acpi_hsci_get(sc, SCI_GET, 0x050e, &value, &result);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot get SCI touchpad status: %x %s\n",
+				value, AcpiFormatException(rv));
+	aprint_normal("value: 0x%x\n", value);
+
 	sci_close(sc);
 
 	return rv;
@@ -902,7 +925,7 @@ sci_open(struct valz_acpi_softc *sc)
 	} else {
 		switch (result) {
 		case SCI_OPENCLOSE_OK:
-			aprint_normal("Opening SCI\n");
+			aprint_debug("Opening SCI\n");
 			break;
 		case SCI_ALREADY_OPEN:
 			aprint_error("SCI already open\n");
@@ -937,7 +960,7 @@ sci_close(struct valz_acpi_softc *sc)
 	} else {
 		switch (result) {
 		case SCI_OPENCLOSE_OK:
-			aprint_normal("Closing SCI\n");
+			aprint_debug("Closing SCI\n");
 			break;
 		case SCI_NOT_OPEN:
 			aprint_error("SCI is not opened\n");
@@ -953,6 +976,48 @@ sci_close(struct valz_acpi_softc *sc)
 			break;
 		}
 	}
+
+	return rv;
+}
+
+/*
+ * Enable/disable touchpad and trackpoint with HCI_ENABLE/HCI_DISABLE
+ */
+static ACPI_STATUS
+valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc)
+{
+	ACPI_STATUS rv;
+	uint32_t result;
+
+	switch (sc->touchpad_status) {
+	case HCI_ENABLE:
+		sc->touchpad_status = HCI_DISABLE;
+		break;
+	case HCI_DISABLE:
+		sc->touchpad_status = HCI_ENABLE;
+		break;
+	default:
+		sc->touchpad_status = HCI_ENABLE;
+		break;
+	}
+
+	rv = sci_open(sc);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot open SCI: %s\n",
+				AcpiFormatException(rv));
+
+	rv = valz_acpi_hsci_set(sc, SCI_SET, 0x050e, sc->touchpad_status, &result);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot set SCI touchpad status: %s\n",
+				AcpiFormatException(rv));
+
+	rv = sci_close(sc);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot close SCI: %s\n",
+				AcpiFormatException(rv));
 
 	return rv;
 }

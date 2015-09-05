@@ -62,37 +62,9 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*-
- * Copyright (c) 2003 Hiroyuki Aizu <aizu@navi.org>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- *
- */
-
 /*
  * ACPI VALZ Driver for Toshiba dynabook R63/PS
- *	This driver is based on acpibat driver
- *	and FreeBSD sys/dev/acpi_support/acpi_toshiba.c.
+ *	This driver is based on vald_acpi.c
  */
 
 /*
@@ -119,8 +91,13 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define METHOD_HCI_ENABLE	"ENAB"
 
 /* Operations */
-#define HCI_SET			0xff00
 #define HCI_GET			0xfe00
+#define HCI_SET			0xff00
+
+#define SCI_OPEN		0xf100
+#define SCI_CLOSE		0xf200
+#define SCI_GET			0xf300
+#define SCI_SET			0xf400
 
 /* Return codes */
 #define HCI_SUCCESS		0x0000
@@ -128,14 +105,23 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define HCI_NOT_SUPPORTED	0x8000
 #define HCI_FIFO_EMPTY		0x8c00
 
+#define SCI_OPENCLOSE_OK	0x0044
+#define SCI_NOT_SUPPORTED	0x8000
+#define SCI_ALREADY_OPEN	0x8100
+#define SCI_NOT_OPEN		0x8200
+#define SCI_NOT_PRESENT		0x8600
+
 /* Functions */
 #define HCI_LCD_BACKLIGHT	0x0002
 #define HCI_ACADAPTOR		0x0003
 #define HCI_SYSTEM_EVENT_FIFO	0x0016
+#define HCI_KBD_BACKLIGHT	0x0017
 #define HCI_DISPLAY_DEVICE	0x001c
 #define HCI_HOTKEY_EVENT	0x001e
 #define HCI_LCD_BRIGHTNESS	0x002a
 #define HCI_CPU_SPEED		0x0032
+
+#define SCI_
 
 /* Field definitions */
 #define HCI_LCD_BRIGHTNESS_BITS	3
@@ -259,8 +245,16 @@ static void		valz_acpi_libright_set(struct valz_acpi_softc *, int);
 static void		valz_acpi_video_switch(struct valz_acpi_softc *);
 
 static ACPI_STATUS	valz_acpi_bcm_set(ACPI_HANDLE, uint32_t);
+
 static ACPI_STATUS	valz_lcd_backlight_set(struct valz_acpi_softc *,
 						uint32_t);
+static ACPI_STATUS	valz_lcd_brightness_set(struct valz_acpi_softc *,
+						uint32_t);
+static ACPI_STATUS	valz_kbd_backlight_set(struct valz_acpi_softc *,
+						uint32_t);
+
+static ACPI_STATUS	sci_open(struct valz_acpi_softc *);
+static ACPI_STATUS	sci_close(struct valz_acpi_softc *);
 
 CFATTACH_DECL_NEW(valz_acpi, sizeof(struct valz_acpi_softc),
     valz_acpi_match, valz_acpi_attach, NULL, NULL);
@@ -410,9 +404,13 @@ valz_acpi_event(void *arg)
 				break;
 			case FN_F2_PRESS:
 				/* Toggle power plan */
+				aprint_normal("Fn+F2\n");
+				valz_kbd_backlight_set(sc, HCI_OFF);
 				break;
 			case FN_F3_PRESS:
 				/* Sleep */
+				aprint_normal("Fn+F3\n");
+				valz_kbd_backlight_set(sc, HCI_ON);
 				break;
 			case FN_F4_PRESS:
 				/* Hibernate */
@@ -423,11 +421,13 @@ valz_acpi_event(void *arg)
 				break;
 			case FN_F6_PRESS:
 				/* Brightness down */
-				valz_acpi_libright_set(sc, LIBRIGHT_DOWN);
+				aprint_normal("Fn+F6\n");
+				valz_lcd_brightness_set(sc, 0x2000);
 				break;
 			case FN_F7_PRESS:
 				/* Brightness up */
-				valz_acpi_libright_set(sc, LIBRIGHT_UP);
+				aprint_normal("Fn+F7\n");
+				valz_lcd_brightness_set(sc, 0xa000);
 				break;
 			case FN_F8_PRESS:
 				/* Toggle WiFi and Bluetooth */
@@ -826,5 +826,133 @@ valz_lcd_backlight_set(struct valz_acpi_softc *sc, uint32_t flag)
 		aprint_error_dev(sc->sc_dev,
 				"Cannot set backlight status: %s\n",
 				AcpiFormatException(rv));
+	return rv;
+}
+
+/*
+ * LCD backlight brightness control with arg (1 to 7)
+ */
+static ACPI_STATUS
+valz_lcd_brightness_set(struct valz_acpi_softc *sc, uint32_t arg)
+{
+	ACPI_STATUS rv;
+	rv = AE_OK;
+	uint32_t value, result;
+
+#if 0
+	if (arg < 1)
+		arg = 1;
+	if (arg > 8)
+		arg = 8;
+#endif
+
+	rv = valz_acpi_hci_get(sc, HCI_LCD_BRIGHTNESS, &value, &result);
+	if (ACPI_FAILURE(rv) || result != 0) {
+		aprint_error_dev(sc->sc_dev,
+				"Cannot set brightness status: %x %s\n",
+				value, AcpiFormatException(rv));
+		return rv;
+	}
+
+	aprint_normal("0x%x\n", value);
+
+	rv = valz_acpi_hci_set(sc, HCI_LCD_BRIGHTNESS, arg, &result);
+	if (ACPI_FAILURE(rv) || result != 0)
+		aprint_error_dev(sc->sc_dev,
+				"Cannot set brightness status: %x %s\n",
+				value, AcpiFormatException(rv));
+	aprint_normal("arg: 0x%x, value: 0x%x\n", arg, value);
+
+	sci_open(sc);
+	sci_close(sc);
+
+	return rv;
+}
+
+/*
+ * Keyboard backlight control with HCI_ON/HCI_OFF flags
+ */
+static ACPI_STATUS
+valz_kbd_backlight_set(struct valz_acpi_softc *sc, uint32_t flag)
+{
+	ACPI_STATUS rv;
+	uint32_t result;
+
+	rv = valz_acpi_hci_set(sc, HCI_KBD_BACKLIGHT, flag, &result);
+	if (ACPI_FAILURE(rv) && result != 0)
+		aprint_error_dev(sc->sc_dev,
+				"Cannot set kdb backlight status: %s\n",
+				AcpiFormatException(rv));
+	return rv;
+}
+
+
+/*
+ * Open SCI
+ */
+static ACPI_STATUS
+sci_open(struct valz_acpi_softc *sc)
+{
+	ACPI_STATUS rv;
+	uint32_t result;
+
+	rv = valz_acpi_hci_set(sc, SCI_CLOSE, 0, &result);
+	if (ACPI_FAILURE(rv)) {
+		aprint_error("SCI: ACPI set error\n");
+	} else {
+		switch (result) {
+		case SCI_OPENCLOSE_OK:
+			aprint_normal("Opening SCI\n");
+			break;
+		case SCI_ALREADY_OPEN:
+			aprint_error("SCI already open\n");
+			break;
+		case SCI_NOT_SUPPORTED:
+			aprint_error("SCI is not supported\n");
+			break;
+		case SCI_NOT_PRESENT:
+			aprint_error("SCI is not present\n");
+			break;
+		default:
+			aprint_error("SCI: undefined behavior\n");
+			break;
+		}
+	}
+
+	return rv;
+}
+
+/*
+ * Close SCI
+ */
+static ACPI_STATUS
+sci_close(struct valz_acpi_softc *sc)
+{
+	ACPI_STATUS rv;
+	uint32_t result;
+
+	rv = valz_acpi_hci_set(sc, SCI_CLOSE, 0, &result);
+	if (ACPI_FAILURE(rv)) {
+		aprint_error("SCI: ACPI set error\n");
+	} else {
+		switch (result) {
+		case SCI_OPENCLOSE_OK:
+			aprint_normal("Closing SCI\n");
+			break;
+		case SCI_NOT_OPEN:
+			aprint_error("SCI is not opened\n");
+			break;
+		case SCI_NOT_SUPPORTED:
+			aprint_error("SCI is not supported\n");
+			break;
+		case SCI_NOT_PRESENT:
+			aprint_error("SCI is not present\n");
+			break;
+		default:
+			aprint_error("SCI: undefined behavior\n");
+			break;
+		}
+	}
+
 	return rv;
 }

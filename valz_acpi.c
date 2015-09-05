@@ -169,7 +169,7 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define FN_F8_RELEASE		(FN_F8_PRESS + FN_RELEASE_OFFSET)
 #define FN_F9_PRESS		0x0143
 #define FN_F9_RELEASE		(FN_F9_PRESS + FN_RELEASE_OFFSET)
-/* Toggle */
+/* Toggle, they are controlled by hardware */
 #define FN_F10_ON		0x1bb0
 #define FN_F10_OFF		0x1bb1
 #define FN_F11_ON		0x1bb2
@@ -245,19 +245,12 @@ static ACPI_STATUS	valz_acpi_hsci_get(struct valz_acpi_softc *, uint32_t,
 static ACPI_STATUS	valz_acpi_hsci_set(struct valz_acpi_softc *, uint32_t,
 					uint32_t, uint32_t, uint32_t *);
 
-static ACPI_STATUS	valz_acpi_libright_get_bus(ACPI_HANDLE, uint32_t,
-					void *, void **);
-static void		valz_acpi_libright_get(struct valz_acpi_softc *);
-static void		valz_acpi_libright_set(struct valz_acpi_softc *, int);
-
-static void		valz_acpi_video_switch(struct valz_acpi_softc *);
-
-static ACPI_STATUS	valz_acpi_bcm_set(ACPI_HANDLE, uint32_t);
-
+#if 0
 static ACPI_STATUS	sci_open(struct valz_acpi_softc *);
 static ACPI_STATUS	sci_close(struct valz_acpi_softc *);
 
 static ACPI_STATUS	valz_acpi_touchpad_toggle(struct valz_acpi_softc *);
+#endif
 
 CFATTACH_DECL_NEW(valz_acpi, sizeof(struct valz_acpi_softc),
     valz_acpi_match, valz_acpi_attach, NULL, NULL);
@@ -334,10 +327,8 @@ valz_acpi_attach(device_t parent, device_t self, void *aux)
 	valz_acpi_event(sc);
 
 	/* Get LCD brightness level via _BCL. */
-	valz_acpi_libright_get(sc);
 
 	/* Set LCD brightness level via _BCM. */
-	valz_acpi_libright_set(sc, LIBRIGHT_HOLD);
 
 	/* enable valz notify */
 	rv = AcpiEvaluateObject(sc->sc_node->ad_handle, "ENAB", NULL, NULL);
@@ -416,7 +407,6 @@ valz_acpi_event(void *arg)
 				break;
 			case FN_F5_PRESS:
 				/* Toggle external/internal display */
-				valz_acpi_video_switch(sc);
 				break;
 			case FN_F6_PRESS:
 				/* Brightness down */
@@ -431,7 +421,9 @@ valz_acpi_event(void *arg)
 				break;
 			case FN_F9_PRESS:
 				/* Toggle touchpad */
+#if 0
 				valz_acpi_touchpad_toggle(sc);
+#endif
 				break;
 			case FN_F10_ON:
 				/* Enable arrow key mode */
@@ -583,236 +575,7 @@ valz_acpi_hsci_set(struct valz_acpi_softc *sc, uint32_t function,
 	return (rv);
 }
 
-/*
- * valz_acpi_libright_get_bus:
- *
- *	Get LCD brightness level via "_BCL" Method,
- *	and save this handle.
- */
-static ACPI_STATUS
-valz_acpi_libright_get_bus(ACPI_HANDLE handle, uint32_t level,
-    void *context, void **status)
-{
-	struct valz_acpi_softc *sc = context;
-	ACPI_STATUS rv;
-	ACPI_BUFFER buf;
-	ACPI_OBJECT *param, *PrtElement;
-	int i, *pi;
-
-	rv = acpi_eval_struct(handle, "_BCL", &buf);
-	if (ACPI_FAILURE(rv))
-		return (AE_OK);
-
-	sc->lcd_handle = handle;
-	param = buf.Pointer;
-	if (param->Type == ACPI_TYPE_PACKAGE) {
-		printf("_BCL retrun: %d packages\n", param->Package.Count);
-
-		sc->lcd_num = param->Package.Count;
-		sc->lcd_level = ACPI_ALLOCATE(sizeof(int) * sc->lcd_num);
-		if (sc->lcd_level == NULL) {
-			if (buf.Pointer)
-				ACPI_FREE(buf.Pointer);
-			return (AE_NO_MEMORY);
-		}
-
-		PrtElement = param->Package.Elements;
-		pi = sc->lcd_level;
-		for (i = 0; i < param->Package.Count; i++) {
-			if (PrtElement->Type == ACPI_TYPE_INTEGER) {
-				*pi = (unsigned)PrtElement->Integer.Value;
-				PrtElement++;
-				pi++;
-			}
-		}
-		if (sc->sc_ac_status == 1) /* AC adaptor on when attach */
-			sc->lcd_index = HCI_LCD_BRIGHTNESS_MAX;
-		else
-			sc->lcd_index = 3;
-	}
-
-	if (buf.Pointer)
-		ACPI_FREE(buf.Pointer);
-	return (AE_OK);
-}
-
-/*
- * valz_acpi_libright_get:
- *
- *	Search node that have "_BCL" Method.
- */
-static void
-valz_acpi_libright_get(struct valz_acpi_softc *sc)
-{
-	ACPI_HANDLE parent;
-	ACPI_STATUS rv;
-
-	aprint_verbose_dev(sc->sc_dev, "get LCD brightness via _BCL\n");
-
-#ifdef ACPI_DEBUG
-	printf("acpi_libright_get: start\n");
-#endif
-	rv = AcpiGetHandle(ACPI_ROOT_OBJECT, "\\_SB_", &parent);
-	if (ACPI_FAILURE(rv))
-		return;
-
-	AcpiWalkNamespace(ACPI_TYPE_DEVICE, parent, 100,
-	    valz_acpi_libright_get_bus, NULL, sc, NULL);
-}
-
-/*
- * valz_acpi_libright_set:
- *
- *	Figure up next status and set it.
- */
-static void
-valz_acpi_libright_set(struct valz_acpi_softc *sc, int UpDown)
-{
-	uint32_t backlight, backlight_new, result, bright;
-	ACPI_STATUS rv;
-	int *pi;
-
-	/* Skip,if it does not support _BCL. */
-	if (sc->lcd_handle == NULL)
-		return;
-
-	/* Get LCD backlight status. */
-	rv = valz_acpi_hsci_get(sc, HCI_GET, HCI_LCD_BACKLIGHT, &backlight, &result);
-	if (ACPI_FAILURE(rv) || result != 0)
-		return;
-
-	/* Figure up next status. */
-	backlight_new = backlight;
-	if (UpDown == LIBRIGHT_UP) {
-		if (backlight == 1)
-			sc->lcd_index++;
-		else {
-			/* backlight on */
-			backlight_new = 1;
-			sc->lcd_index = 2;
-		}
-	} else if (UpDown == LIBRIGHT_DOWN) {
-		if ((backlight == 1) && (sc->lcd_index > 2))
-			sc->lcd_index--;
-		else {
-			/* backlight off */
-			backlight_new = 0;
-			sc->lcd_index = 2;
-		}
-	}
-
-	/* Check index value. */
-	if (sc->lcd_index < 0)
-		sc->lcd_index = 0; /* index Minium Value */
-	if (sc->lcd_index >= sc->lcd_num)
-		sc->lcd_index = sc->lcd_num;
-
-	/* Set LCD backlight,if status is changed. */
-	if (backlight_new != backlight) {
-		rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_LCD_BACKLIGHT, backlight_new,
-		    &result);
-		if (ACPI_SUCCESS(rv) && result != 0)
-			aprint_error_dev(sc->sc_dev, "can't set LCD backlight %s error=%x\n",
-			    ((backlight_new == 1) ? "on" : "off"), result);
-	}
-
-	if (backlight_new == 1) {
-
-		pi = sc->lcd_level;
-		bright = *(pi + sc->lcd_index);
-
-		rv = valz_acpi_bcm_set(sc->sc_node->ad_handle, bright);
-		if (ACPI_FAILURE(rv))
-			aprint_error_dev(sc->sc_dev, "unable to evaluate _BCM: %s\n",
-			    AcpiFormatException(rv));
-	} else {
-		bright = 0;
-	}
-#ifdef ACPI_DEBUG
-	printf("LCD bright");
-	printf(" %s", ((UpDown == LIBRIGHT_UP) ? "up":""));
-	printf("%s\n", ((UpDown == LIBRIGHT_DOWN) ? "down":""));
-	printf("\t acpi_libright_set: Set brightness to %d%%\n", bright);
-#endif
-}
-
-/*
- * valz_acpi_video_switch:
- *
- *	Get video status(LCD/CRT) and set new video status.
- */
-static void
-valz_acpi_video_switch(struct valz_acpi_softc *sc)
-{
-	ACPI_STATUS	rv;
-	uint32_t	value, result;
-
-	/* Get video status. */
-	rv = valz_acpi_hsci_get(sc, HCI_GET, HCI_DISPLAY_DEVICE, &value, &result);
-	if (ACPI_FAILURE(rv))
-		return;
-	if (result != 0) {
-		aprint_error_dev(sc->sc_dev, "can't get video status  error=%x\n",
-		    result);
-		return;
-	}
-
-#ifdef ACPI_DEBUG
-	printf("Toggle LCD/CRT\n");
-	printf("\t Before switch, video status:   %s",
-	    (((value & HCI_LCD) == HCI_LCD) ? "LCD" : ""));
-	printf("%s\n", (((value & HCI_CRT) == HCI_CRT) ? "CRT": ""));
-#endif
-
-	/* Toggle LCD/CRT */
-	if (value & HCI_LCD) {
-		value &= ~HCI_LCD;
-		value |= HCI_CRT;
-	} else if (value & HCI_CRT){
-		value &= ~HCI_CRT;
-		value |= HCI_LCD;
-	}
-
-//	rv = valz_acpi_dssx_set(value);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev, "unable to evaluate DSSX: %s\n",
-		    AcpiFormatException(rv));
-
-}
-
-/*
- * valz_acpi_bcm_set:
- */
-static ACPI_STATUS
-valz_acpi_bcm_set(ACPI_HANDLE handle, uint32_t bright)
-{
-	ACPI_STATUS rv;
-	ACPI_OBJECT Arg[HCI_WORDS];
-	ACPI_OBJECT_LIST ArgList;
-	int i;
-
-	bright <<= HCI_LCD_BRIGHTNESS_SFT;
-
-	for (i = 0; i < HCI_WORDS; i++) {
-		Arg[i].Type = ACPI_TYPE_INTEGER;
-		Arg[i].Integer.Value = 0;
-	}
-
-	Arg[0].Integer.Value = HCI_SET;
-	Arg[1].Integer.Value = HCI_LCD_BRIGHTNESS;
-	Arg[2].Integer.Value = bright;
-
-	ArgList.Count = HCI_WORDS;
-	ArgList.Pointer = Arg;
-
-	rv = AcpiEvaluateObject(handle, METHOD_HCI, &ArgList, NULL);
-	if (ACPI_FAILURE(rv)) {
-		aprint_error("BCM: failed to evaluate GHCI: %s\n",
-		    AcpiFormatException(rv));
-	}
-	return (rv);
-}
-
+#if 0
 /*
  * Open SCI
  */
@@ -930,4 +693,4 @@ valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc)
 
 	return rv;
 }
-
+#endif

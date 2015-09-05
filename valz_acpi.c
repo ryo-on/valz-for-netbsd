@@ -126,6 +126,10 @@ ACPI_MODULE_NAME		("valz_acpi")
 
 #define SCI_USB_OFF_CHARGE	0x0150
 #define SCI_TOUCHPAD		0x050e
+#define SCI_KBD_BACKLIGHT_STS	0x015c
+#define SCI_KBD_BACKLIGHT	0x0095
+
+#define SCI_KBD_BL_TIME_SHIFT	0x10
 
 /* Field definitions */
 #define HCI_LCD_BRIGHTNESS_BITS	3
@@ -215,9 +219,6 @@ struct valz_acpi_softc {
 	int lcd_index;			/* index of lcd brightness table */
 
 	ACPI_INTEGER sc_ac_status;	/* AC adaptor status when attach */
-
-	uint32_t touchpad_status;	/* Touchpad status, enable/disable */
-	uint32_t usbcharge_status;	/* USB charge status, enable/disable */
 };
 
 static const char * const valz_acpi_hids[] = {
@@ -253,18 +254,10 @@ static void		valz_acpi_video_switch(struct valz_acpi_softc *);
 
 static ACPI_STATUS	valz_acpi_bcm_set(ACPI_HANDLE, uint32_t);
 
-static ACPI_STATUS	valz_lcd_backlight_set(struct valz_acpi_softc *,
-						uint32_t);
-static ACPI_STATUS	valz_lcd_brightness_set(struct valz_acpi_softc *,
-						uint32_t);
-static ACPI_STATUS	valz_kbd_backlight_set(struct valz_acpi_softc *,
-						uint32_t);
-
 static ACPI_STATUS	sci_open(struct valz_acpi_softc *);
 static ACPI_STATUS	sci_close(struct valz_acpi_softc *);
 
 static ACPI_STATUS	valz_acpi_touchpad_toggle(struct valz_acpi_softc *);
-static ACPI_STATUS	valz_acpi_usb_off_charge_toggle(struct valz_acpi_softc *);
 
 CFATTACH_DECL_NEW(valz_acpi, sizeof(struct valz_acpi_softc),
     valz_acpi_match, valz_acpi_attach, NULL, NULL);
@@ -405,22 +398,18 @@ valz_acpi_event(void *arg)
 			case FN_ESC_PRESS:
 				/* Mute speaker */
 				aprint_normal("Fn+ESC\n");
-				valz_lcd_backlight_set(sc, HCI_ON);
 				break;
 			case FN_F1_PRESS:
 				/* Instant security */
 				aprint_normal("Fn+F1\n");
-				valz_lcd_backlight_set(sc, HCI_OFF);
 				break;
 			case FN_F2_PRESS:
 				/* Toggle power plan */
 				aprint_normal("Fn+F2\n");
-				valz_kbd_backlight_set(sc, HCI_OFF);
 				break;
 			case FN_F3_PRESS:
 				/* Sleep */
 				aprint_normal("Fn+F3\n");
-				valz_kbd_backlight_set(sc, HCI_ON);
 				break;
 			case FN_F4_PRESS:
 				/* Hibernate */
@@ -432,12 +421,10 @@ valz_acpi_event(void *arg)
 			case FN_F6_PRESS:
 				/* Brightness down */
 				aprint_normal("Fn+F6\n");
-				valz_lcd_brightness_set(sc, 0x2000);
 				break;
 			case FN_F7_PRESS:
 				/* Brightness up */
 				aprint_normal("Fn+F7\n");
-				valz_lcd_brightness_set(sc, 0xa000);
 				break;
 			case FN_F8_PRESS:
 				/* Toggle WiFi and Bluetooth */
@@ -467,12 +454,14 @@ valz_acpi_event(void *arg)
 			case FN_2_PRESS:
 				/* Zoom out */
 				break;
+			case FN_Z_PRESS:
+				/* Keyboard backlight */
+				break;
 			case FN_SPACE_PRESS:
 				/* Change display resolution */
 				break;
 			case FN_TAB_PRESS:
 				/* undefined */
-				valz_acpi_usb_off_charge_toggle(sc);
 				break;
 
 			default:
@@ -825,96 +814,6 @@ valz_acpi_bcm_set(ACPI_HANDLE handle, uint32_t bright)
 }
 
 /*
- * LCD backlight control with HCI_ON/HCI_OFF flags
- */
-static ACPI_STATUS
-valz_lcd_backlight_set(struct valz_acpi_softc *sc, uint32_t flag)
-{
-	ACPI_STATUS rv;
-	uint32_t result;
-
-	rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_LCD_BACKLIGHT, flag, &result);
-	if (ACPI_FAILURE(rv) && result != 0)
-		aprint_error_dev(sc->sc_dev,
-				"Cannot set backlight status: %s\n",
-				AcpiFormatException(rv));
-	return rv;
-}
-
-/*
- * LCD backlight brightness control with arg (1 to 7)
- */
-static ACPI_STATUS
-valz_lcd_brightness_set(struct valz_acpi_softc *sc, uint32_t arg)
-{
-	ACPI_STATUS rv;
-	rv = AE_OK;
-	uint32_t value, result;
-
-#if 0
-	if (arg < 1)
-		arg = 1;
-	if (arg > 8)
-		arg = 8;
-#endif
-
-	rv = valz_acpi_hsci_get(sc, HCI_GET, HCI_LCD_BRIGHTNESS, &value, &result);
-	if (ACPI_FAILURE(rv) || result != 0) {
-		aprint_error_dev(sc->sc_dev,
-				"Cannot set brightness status: %x %s\n",
-				value, AcpiFormatException(rv));
-		return rv;
-	}
-
-	aprint_normal("0x%x\n", value);
-
-	rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_LCD_BRIGHTNESS, arg, &result);
-	if (ACPI_FAILURE(rv) || result != 0)
-		aprint_error_dev(sc->sc_dev,
-				"Cannot set brightness status: %x %s\n",
-				value, AcpiFormatException(rv));
-	aprint_normal("arg: 0x%x, value: 0x%x\n", arg, value);
-
-	/* XXX */
-	sci_open(sc);
-	rv = valz_acpi_hsci_get(sc, SCI_CHECK, 0, &value, &result);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Cannot get SCI support status: %x %s\n",
-				value, AcpiFormatException(rv));
-	aprint_normal("value: 0x%x\n", value);
-
-	rv = valz_acpi_hsci_get(sc, SCI_GET, 0x050e, &value, &result);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Cannot get SCI touchpad status: %x %s\n",
-				value, AcpiFormatException(rv));
-	aprint_normal("value: 0x%x\n", value);
-
-	sci_close(sc);
-
-	return rv;
-}
-
-/*
- * Keyboard backlight control with HCI_ON/HCI_OFF flags
- */
-static ACPI_STATUS
-valz_kbd_backlight_set(struct valz_acpi_softc *sc, uint32_t flag)
-{
-	ACPI_STATUS rv;
-	uint32_t result;
-
-	rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_KBD_BACKLIGHT, flag, &result);
-	if (ACPI_FAILURE(rv) && result != 0)
-		aprint_error_dev(sc->sc_dev,
-				"Cannot set kdb backlight status: %s\n",
-				AcpiFormatException(rv));
-	return rv;
-}
-
-
-/*
  * Open SCI
  */
 static ACPI_STATUS
@@ -1005,7 +904,6 @@ valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc)
 				"Cannot get SCI touchpad status: %s\n",
 				AcpiFormatException(rv));
 
-	aprint_normal("touchpad: %x\n", value);
 	switch (value) {
 	case HCI_ENABLE:
 		status = HCI_DISABLE;
@@ -1019,49 +917,6 @@ valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc)
 	}
 
 	rv = valz_acpi_hsci_set(sc, SCI_SET, SCI_TOUCHPAD, status, &result);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Cannot set SCI touchpad status: %s\n",
-				AcpiFormatException(rv));
-
-	rv = sci_close(sc);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Cannot close SCI: %s\n",
-				AcpiFormatException(rv));
-
-	return rv;
-}
-
-/*
- * Enable/disable USB off time charge with HCI_ENABLE/HCI_DISABLE
- */
-static ACPI_STATUS
-valz_acpi_usb_off_charge_toggle(struct valz_acpi_softc *sc)
-{
-	ACPI_STATUS rv;
-	uint32_t result;
-
-	switch (sc->usbcharge_status) {
-	case HCI_ENABLE:
-		sc->usbcharge_status = HCI_DISABLE;
-		break;
-	case HCI_DISABLE:
-		sc->usbcharge_status = HCI_ENABLE;
-		break;
-	default: /* when undefined, disable it */
-		sc->usbcharge_status = HCI_DISABLE;
-		break;
-	}
-
-	rv = sci_open(sc);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Cannot open SCI: %s\n",
-				AcpiFormatException(rv));
-
-	rv = valz_acpi_hsci_set(sc, SCI_SET, SCI_USB_OFF_CHARGE,
-				sc->usbcharge_status, &result);
 	if (ACPI_FAILURE(rv))
 		aprint_error_dev(sc->sc_dev,
 				"Cannot set SCI touchpad status: %s\n",

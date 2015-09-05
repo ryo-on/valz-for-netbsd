@@ -124,7 +124,8 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define HCI_LCD_BRIGHTNESS	0x002a
 #define HCI_CPU_SPEED		0x0032
 
-#define SCI_
+#define SCI_USB_OFF_CHARGE	0x0150
+#define SCI_TOUCHPAD		0x050e
 
 /* Field definitions */
 #define HCI_LCD_BRIGHTNESS_BITS	3
@@ -216,6 +217,7 @@ struct valz_acpi_softc {
 	ACPI_INTEGER sc_ac_status;	/* AC adaptor status when attach */
 
 	uint32_t touchpad_status;	/* Touchpad status, enable/disable */
+	uint32_t usbcharge_status;	/* USB charge status, enable/disable */
 };
 
 static const char * const valz_acpi_hids[] = {
@@ -261,7 +263,8 @@ static ACPI_STATUS	valz_kbd_backlight_set(struct valz_acpi_softc *,
 static ACPI_STATUS	sci_open(struct valz_acpi_softc *);
 static ACPI_STATUS	sci_close(struct valz_acpi_softc *);
 
-static ACPI_STATUS	valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc);
+static ACPI_STATUS	valz_acpi_touchpad_toggle(struct valz_acpi_softc *);
+static ACPI_STATUS	valz_acpi_usb_off_charge_toggle(struct valz_acpi_softc *);
 
 CFATTACH_DECL_NEW(valz_acpi, sizeof(struct valz_acpi_softc),
     valz_acpi_match, valz_acpi_attach, NULL, NULL);
@@ -469,6 +472,7 @@ valz_acpi_event(void *arg)
 				break;
 			case FN_TAB_PRESS:
 				/* undefined */
+				valz_acpi_usb_off_charge_toggle(sc);
 				break;
 
 			default:
@@ -987,19 +991,7 @@ static ACPI_STATUS
 valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc)
 {
 	ACPI_STATUS rv;
-	uint32_t result;
-
-	switch (sc->touchpad_status) {
-	case HCI_ENABLE:
-		sc->touchpad_status = HCI_DISABLE;
-		break;
-	case HCI_DISABLE:
-		sc->touchpad_status = HCI_ENABLE;
-		break;
-	default:
-		sc->touchpad_status = HCI_ENABLE;
-		break;
-	}
+	uint32_t result, status, value;
 
 	rv = sci_open(sc);
 	if (ACPI_FAILURE(rv))
@@ -1007,7 +999,26 @@ valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc)
 				"Cannot open SCI: %s\n",
 				AcpiFormatException(rv));
 
-	rv = valz_acpi_hsci_set(sc, SCI_SET, 0x050e, sc->touchpad_status, &result);
+	rv = valz_acpi_hsci_get(sc, SCI_GET, SCI_TOUCHPAD, &value, &result);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot get SCI touchpad status: %s\n",
+				AcpiFormatException(rv));
+
+	aprint_normal("touchpad: %x\n", value);
+	switch (value) {
+	case HCI_ENABLE:
+		status = HCI_DISABLE;
+		break;
+	case HCI_DISABLE:
+		status = HCI_ENABLE;
+		break;
+	default:
+		status = HCI_ENABLE;
+		break;
+	}
+
+	rv = valz_acpi_hsci_set(sc, SCI_SET, SCI_TOUCHPAD, status, &result);
 	if (ACPI_FAILURE(rv))
 		aprint_error_dev(sc->sc_dev,
 				"Cannot set SCI touchpad status: %s\n",
@@ -1021,3 +1032,47 @@ valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc)
 
 	return rv;
 }
+
+/*
+ * Enable/disable USB off time charge with HCI_ENABLE/HCI_DISABLE
+ */
+static ACPI_STATUS
+valz_acpi_usb_off_charge_toggle(struct valz_acpi_softc *sc)
+{
+	ACPI_STATUS rv;
+	uint32_t result;
+
+	switch (sc->usbcharge_status) {
+	case HCI_ENABLE:
+		sc->usbcharge_status = HCI_DISABLE;
+		break;
+	case HCI_DISABLE:
+		sc->usbcharge_status = HCI_ENABLE;
+		break;
+	default: /* when undefined, disable it */
+		sc->usbcharge_status = HCI_DISABLE;
+		break;
+	}
+
+	rv = sci_open(sc);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot open SCI: %s\n",
+				AcpiFormatException(rv));
+
+	rv = valz_acpi_hsci_set(sc, SCI_SET, SCI_USB_OFF_CHARGE,
+				sc->usbcharge_status, &result);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot set SCI touchpad status: %s\n",
+				AcpiFormatException(rv));
+
+	rv = sci_close(sc);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot close SCI: %s\n",
+				AcpiFormatException(rv));
+
+	return rv;
+}
+

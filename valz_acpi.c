@@ -119,7 +119,7 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define HCI_ACADAPTOR		0x0003
 #define HCI_SYSTEM_EVENT_FIFO	0x0016
 #define HCI_KBD_BACKLIGHT	0x0017
-#define HCI_DISPLAY_DEVICE	0x001c
+#define HCI_DISPLAY_DEV		0x001c
 #define HCI_HOTKEY_EVENT	0x001e
 #define HCI_LCD_BRIGHTNESS	0x002a
 #define HCI_CPU_SPEED		0x0032
@@ -204,9 +204,9 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define HCI_ENABLE		0x0001
 #define HCI_DISABLE		0x0000
 
-#define HCI_LCD			1
-#define HCI_CRT			2
-#define HCI_TV			4
+#define HCI_LCD			0x1
+#define HCI_CRT			0x2
+#define HCI_TV			0x4
 
 struct valz_acpi_softc {
 	device_t sc_dev;		/* base device glue */
@@ -226,10 +226,6 @@ static const char * const valz_acpi_hids[] = {
 	NULL
 };
 
-#define LIBRIGHT_HOLD	0x00
-#define LIBRIGHT_UP	0x01
-#define LIBRIGHT_DOWN	0x02
-
 static int	valz_acpi_match(device_t, cfdata_t, void *);
 static void	valz_acpi_attach(device_t, device_t, void *);
 
@@ -240,17 +236,19 @@ static void	valz_acpi_notify_handler(ACPI_HANDLE, uint32_t, void *);
 #define ACPI_NOTIFY_ValzLidClosed	0x8f
 
 /* HCI manipulation */
-static ACPI_STATUS	valz_acpi_hsci_get(struct valz_acpi_softc *, uint32_t,
+static ACPI_STATUS	hci_op(struct valz_acpi_softc *,
+				uint32_t *, uint32_t *);
+static ACPI_STATUS	valz_acpi_hci_get(struct valz_acpi_softc *, uint32_t,
 					uint32_t, uint32_t *, uint32_t *);
-static ACPI_STATUS	valz_acpi_hsci_set(struct valz_acpi_softc *, uint32_t,
+static ACPI_STATUS	valz_acpi_hci_set(struct valz_acpi_softc *, uint32_t,
 					uint32_t, uint32_t, uint32_t *);
 
-#if 0
 static ACPI_STATUS	sci_open(struct valz_acpi_softc *);
 static ACPI_STATUS	sci_close(struct valz_acpi_softc *);
 
 static ACPI_STATUS	valz_acpi_touchpad_toggle(struct valz_acpi_softc *);
-#endif
+static ACPI_STATUS	valz_acpi_lcd_backlight_toggle(
+					struct valz_acpi_softc *sc);
 
 CFATTACH_DECL_NEW(valz_acpi, sizeof(struct valz_acpi_softc),
     valz_acpi_match, valz_acpi_attach, NULL, NULL);
@@ -301,24 +299,24 @@ valz_acpi_attach(device_t parent, device_t self, void *aux)
 		    (sc->sc_ac_status == 0 ? "not ": ""));
 
 	/* Get LCD backlight status. */
-	rv = valz_acpi_hsci_get(sc, HCI_GET, HCI_LCD_BACKLIGHT, &value, &result);
+	rv = valz_acpi_hci_get(sc, HCI_GET, HCI_LCD_BACKLIGHT, &value, &result);
 	if (ACPI_SUCCESS(rv)) {
 		if (result != 0)
-			aprint_error_dev(self, "can't get backlight status error=%d\n",
-			    result);
+			aprint_error_dev(self, "can't get backlight status error result: %x, value: %x\n",
+			    result, value);
 		else
 			aprint_verbose_dev(self, "LCD backlight %s\n",
 			    ((value == HCI_ON) ? "on" : "off"));
 	}
 
 	/* Enable SystemEventFIFO,HotkeyEvent */
-	rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_SYSTEM_EVENT_FIFO, HCI_ENABLE,
+	rv = valz_acpi_hci_set(sc, HCI_SET, HCI_SYSTEM_EVENT_FIFO, HCI_ENABLE,
 	    &result);
 	if (ACPI_SUCCESS(rv) && result != 0)
 		aprint_error_dev(self, "can't enable SystemEventFIFO error=%d\n",
 		    result);
 
-	rv = valz_acpi_hsci_set(sc, HCI_SET, HCI_HOTKEY_EVENT, HCI_ENABLE, &result);
+	rv = valz_acpi_hci_set(sc, HCI_SET, HCI_HOTKEY_EVENT, HCI_ENABLE, &result);
 	if (ACPI_SUCCESS(rv) && result != 0)
 		aprint_error_dev(self, "can't enable HotkeyEvent error=%d\n",
 		    result);
@@ -381,8 +379,8 @@ valz_acpi_event(void *arg)
 	uint32_t value, result;
 
 	while(1) {
-		rv = valz_acpi_hsci_get(sc, HCI_GET, HCI_SYSTEM_EVENT_FIFO, &value,
-		    &result);
+		rv = valz_acpi_hci_get(sc, HCI_GET, HCI_SYSTEM_EVENT_FIFO,
+			&value, &result);
 		if (ACPI_SUCCESS(rv) && result == 0) {
 
 			switch (value) {
@@ -421,9 +419,7 @@ valz_acpi_event(void *arg)
 				break;
 			case FN_F9_PRESS:
 				/* Toggle touchpad */
-#if 0
 				valz_acpi_touchpad_toggle(sc);
-#endif
 				break;
 			case FN_F10_ON:
 				/* Enable arrow key mode */
@@ -454,25 +450,25 @@ valz_acpi_event(void *arg)
 				break;
 			case FN_TAB_PRESS:
 				/* undefined */
+				valz_acpi_lcd_backlight_toggle(sc);
 				break;
 
 			default:
 				break;
 			}
 		}
-		if (ACPI_FAILURE(rv) || result == HCI_FIFO_EMPTY)
+		if (ACPI_FAILURE(rv) || result == HCI_NOT_SUPPORTED ||
+			result == HCI_FIFO_EMPTY)
 			break;
 	}
 }
 
 /*
- * valz_acpi_hsci_get:
- *
- *	Get value via "GHCI" Method.
+ * HCI/SCI operation
  */
 static ACPI_STATUS
-valz_acpi_hsci_get(struct valz_acpi_softc *sc, uint32_t function,
-    uint32_t reg, uint32_t *value, uint32_t *result)
+hci_op(struct valz_acpi_softc *sc, uint32_t *input,
+			uint32_t *output)
 {
 	ACPI_STATUS rv;
 	ACPI_OBJECT Arg[HCI_WORDS];
@@ -486,9 +482,9 @@ valz_acpi_hsci_get(struct valz_acpi_softc *sc, uint32_t function,
 		Arg[i].Integer.Value = 0;
 	}
 
-	Arg[0].Integer.Value = function;
-	Arg[1].Integer.Value = reg;
-	Arg[2].Integer.Value = 0;
+	for (i = 0; i < HCI_WORDS; i++) {
+		Arg[i].Integer.Value = input[i];
+	}
 
 	ArgList.Count = HCI_WORDS;
 	ArgList.Pointer = Arg;
@@ -504,78 +500,71 @@ valz_acpi_hsci_get(struct valz_acpi_softc *sc, uint32_t function,
 		return (rv);
 	}
 
-	*result = HCI_NOT_SUPPORTED;
-	*value = 0;
 	param = buf.Pointer;
 	if (param->Type == ACPI_TYPE_PACKAGE) {
 		PrtElement = param->Package.Elements;
-		if (PrtElement->Type == ACPI_TYPE_INTEGER)
-			*result = PrtElement->Integer.Value;
-		PrtElement++;
-		PrtElement++;
-		if (PrtElement->Type == ACPI_TYPE_INTEGER)
-			*value = PrtElement->Integer.Value;
+		for (i = 0; i < HCI_WORDS; i++) {
+			output[i] = PrtElement->Integer.Value;
+			PrtElement++;
+		}
 	}
 
 	if (buf.Pointer)
 		ACPI_FREE(buf.Pointer);
-	return (rv);
+	return rv;
 }
 
 /*
- * valz_acpi_hsci_set:
+ * valz_acpi_hci_get:
+ *
+ *	Get value via "GHCI" Method.
+ */
+static ACPI_STATUS
+valz_acpi_hci_get(struct valz_acpi_softc *sc, uint32_t function,
+    uint32_t reg, uint32_t *value, uint32_t *result)
+{
+	ACPI_STATUS rv;
+
+	uint32_t input[HCI_WORDS];
+	uint32_t output[HCI_WORDS];
+
+	input[HCI_REG_AX] = function;
+	input[HCI_REG_BX] = reg;
+	input[HCI_REG_CX] = 0;
+
+	rv = hci_op(sc, input, output);
+
+	*result = output[HCI_REG_AX];
+	*value = output[HCI_REG_CX];
+
+	return rv;
+}
+
+/*
+ * valz_acpi_hci_set:
  *
  *	Set value via "GHCI" Method.
  */
 static ACPI_STATUS
-valz_acpi_hsci_set(struct valz_acpi_softc *sc, uint32_t function,
+valz_acpi_hci_set(struct valz_acpi_softc *sc, uint32_t function,
     uint32_t reg, uint32_t value, uint32_t *result)
 {
 	ACPI_STATUS rv;
-	ACPI_OBJECT Arg[HCI_WORDS];
-	ACPI_OBJECT_LIST ArgList;
-	ACPI_OBJECT *param, *PrtElement;
-	ACPI_BUFFER buf;
-	int	i;
 
+	uint32_t input[HCI_WORDS];
+	uint32_t output[HCI_WORDS];
 
-	for (i = 0; i < HCI_WORDS; i++) {
-		Arg[i].Type = ACPI_TYPE_INTEGER;
-		Arg[i].Integer.Value = 0;
-	}
+	input[HCI_REG_AX] = function;
+	input[HCI_REG_BX] = reg;
+	input[HCI_REG_CX] = value;
 
-	Arg[0].Integer.Value = function;
-	Arg[1].Integer.Value = reg;
-	Arg[2].Integer.Value = value;
+	rv = hci_op(sc, input, output);
 
-	ArgList.Count = HCI_WORDS;
-	ArgList.Pointer = Arg;
+	*result = output[HCI_REG_AX];
 
-	buf.Pointer = NULL;
-	buf.Length = ACPI_ALLOCATE_LOCAL_BUFFER;
-
-	rv = AcpiEvaluateObject(sc->sc_node->ad_handle,
-	    METHOD_HCI, &ArgList, &buf);
-	if (ACPI_FAILURE(rv)) {
-		aprint_error_dev(sc->sc_dev, "failed to evaluate GHCI: %s\n",
-		    AcpiFormatException(rv));
-		return (rv);
-	}
-
-	*result = HCI_NOT_SUPPORTED;
-	param = buf.Pointer;
-	if (param->Type == ACPI_TYPE_PACKAGE) {
-		PrtElement = param->Package.Elements;
-	    	if (PrtElement->Type == ACPI_TYPE_INTEGER)
-			*result = PrtElement->Integer.Value;
-	}
-
-	if (buf.Pointer)
-		ACPI_FREE(buf.Pointer);
-	return (rv);
+	return rv;
 }
 
-#if 0
 /*
  * Open SCI
  */
@@ -585,7 +574,7 @@ sci_open(struct valz_acpi_softc *sc)
 	ACPI_STATUS rv;
 	uint32_t result;
 
-	rv = valz_acpi_hsci_set(sc, SCI_OPEN, 0, 0, &result);
+	rv = valz_acpi_hci_set(sc, SCI_OPEN, 0, 0, &result);
 	if (ACPI_FAILURE(rv)) {
 		aprint_error("SCI: ACPI set error\n");
 	} else {
@@ -620,7 +609,7 @@ sci_close(struct valz_acpi_softc *sc)
 	ACPI_STATUS rv;
 	uint32_t result;
 
-	rv = valz_acpi_hsci_set(sc, SCI_CLOSE, 0, 0, &result);
+	rv = valz_acpi_hci_set(sc, SCI_CLOSE, 0, 0, &result);
 	if (ACPI_FAILURE(rv)) {
 		aprint_error("SCI: ACPI set error\n");
 	} else {
@@ -661,7 +650,7 @@ valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc)
 				"Cannot open SCI: %s\n",
 				AcpiFormatException(rv));
 
-	rv = valz_acpi_hsci_get(sc, SCI_GET, SCI_TOUCHPAD, &value, &result);
+	rv = valz_acpi_hci_get(sc, SCI_GET, SCI_TOUCHPAD, &value, &result);
 	if (ACPI_FAILURE(rv))
 		aprint_error_dev(sc->sc_dev,
 				"Cannot get SCI touchpad status: %s\n",
@@ -679,7 +668,7 @@ valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc)
 		break;
 	}
 
-	rv = valz_acpi_hsci_set(sc, SCI_SET, SCI_TOUCHPAD, status, &result);
+	rv = valz_acpi_hci_set(sc, SCI_SET, SCI_TOUCHPAD, status, &result);
 	if (ACPI_FAILURE(rv))
 		aprint_error_dev(sc->sc_dev,
 				"Cannot set SCI touchpad status: %s\n",
@@ -693,4 +682,40 @@ valz_acpi_touchpad_toggle(struct valz_acpi_softc *sc)
 
 	return rv;
 }
-#endif
+
+/*
+ * Enable/disable LCD backlight with HCI_ENABLE/HCI_DISABLE
+ */
+static ACPI_STATUS
+valz_acpi_lcd_backlight_toggle(struct valz_acpi_softc *sc)
+{
+	ACPI_STATUS rv;
+	uint32_t result, status, value;
+
+	rv = valz_acpi_hci_get(sc, HCI_GET, HCI_LCD_BACKLIGHT, &value, &result);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot get HCI LCD backlight status: %s\n",
+				AcpiFormatException(rv));
+
+	switch (value) {
+	case HCI_ON:
+		status = HCI_OFF;
+		break;
+	case HCI_OFF:
+		status = HCI_ON;
+		break;
+	default:
+		status = HCI_ON;
+		break;
+	}
+
+	rv = valz_acpi_hci_set(sc, HCI_SET, HCI_LCD_BACKLIGHT, status, &result);
+	if (ACPI_FAILURE(rv))
+		aprint_error_dev(sc->sc_dev,
+				"Cannot set HCI LCD backlight status: %s\n",
+				AcpiFormatException(rv));
+
+	return rv;
+}
+

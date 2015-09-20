@@ -201,68 +201,6 @@ ACPI_MODULE_NAME		("valz_acpi")
 #define FN_DEL_RELEASE		(FN_DEL_PRESS + FN_RELEASE_OFFSET)
 #define FN_PRTSC_PRESS		0x0137
 #define FN_PRTSC_RELEASE	(FN_PRTSC_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_PRESS		0x0170
-#define FN_KANA_RELEASE		(FN_KANA_PRESS + FN_RELEASE_OFFSET)
-#define FN_HENKAN_PRESS		0x0179
-#define FN_HENKAN_RELEASE	(FN_HENKAN_PRESS + FN_RELEASE_OFFSET)
-#define FN_MUHENKAN_PRESS	0x017b
-#define FN_MUHENKAN_RELEASE	(FN_MUHENKAN_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_RO_PRESS	0x0173
-#define FN_KANA_RO_RELEASE	(FN_KANA_RO_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_NE_PRESS	0x0133
-#define FN_KANA_NE_RELEASE	(FN_KANA_NE_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_MI_PRESS	0x0131
-#define FN_KANA_MI_RELEASE	(FN_KANA_MI_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_KO_PRESS	0x0130
-#define FN_KANA_KO_RELEASE	(FN_KANA_KO_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_HI_PRESS	0x012f
-#define FN_KANA_HI_RELEASE	(FN_KANA_HI_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_SO_PRESS	0x012e
-#define FN_KANA_SO_RELEASE	(FN_KANA_SO_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_SA_PRESS	0x012d
-#define FN_KANA_SA_RELEASE	(FN_KANA_SA_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_MU_PRESS	0x012b
-#define FN_KANA_MU_RELEASE	(FN_KANA_MU_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_KE_PRESS	0x0128
-#define FN_KANA_KE_RELEASE	(FN_KANA_KE_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_KU_PRESS	0x0123
-#define FN_KANA_KU_RELEASE	(FN_KANA_KU_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_KI_PRESS	0x0122
-#define FN_KANA_KI_RELEASE	(FN_KANA_KU_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_HA_PRESS	0x0121
-#define FN_KANA_HA_RELEASE	(FN_KANA_HA_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_SI_PRESS	0x0120
-#define FN_KANA_SI_RELEASE	(FN_KANA_SI_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_TO_PRESS	0x011f
-#define FN_KANA_TO_RELEASE	(FN_KANA_TO_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_TI_PRESS	0x011e
-#define FN_KANA_TI_RELEASE	(FN_KANA_TI_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_MARU_PRESS	0x011b
-#define FN_KANA_MARU_RELEASE	(FN_KANA_MARU_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_TEN_PRESS	0x011a
-#define FN_KANA_TEN_RELEASE	(FN_KANA_TEN_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_NN_PRESS	0x0115
-#define FN_KANA_NN_RELEASE	(FN_KANA_NN_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_KA_PRESS	0x0114
-#define FN_KANA_KA_RELEASE	(FN_KANA_KA_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_SU_PRESS	0x0113
-#define FN_KANA_SU_RELEASE	(FN_KANA_SU_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_II_PRESS	0x0112
-#define FN_KANA_II_RELEASE	(FN_KANA_II_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_TE_PRESS	0x0111
-#define FN_KANA_TE_RELEASE	(FN_KANA_TE_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_TA_PRESS	0x0110
-#define FN_KANA_TA_RELEASE	(FN_KANA_TA_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_YEN_PRESS	0x017d
-#define FN_KANA_YEN_RELEASE	(FN_KANA_YEN_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_HE_PRESS	0x010d
-#define FN_KANA_HE_RELEASE	(FN_KANA_HE_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_HO_PRESS	0x010c
-#define FN_KANA_HO_RELEASE	(FN_KANA_HO_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_OO_PRESS	0x0107
-#define FN_KANA_OO_RELEASE	(FN_KANA_OO_PRESS + FN_RELEASE_OFFSET)
-#define FN_KANA_EE_PRESS	0x0106
-#define FN_KANA_EE_RELEASE	(FN_KANA_EE_PRESS + FN_RELEASE_OFFSET)
 
 /* HCI register definitions */
 #define HCI_WORDS		6 /* number of registers */
@@ -322,12 +260,6 @@ static ACPI_STATUS	sci_close(struct valz_acpi_softc *);
 static ACPI_STATUS	valz_acpi_touchpad_toggle(struct valz_acpi_softc *);
 static ACPI_STATUS	valz_acpi_lcd_backlight_toggle(
 					struct valz_acpi_softc *sc);
-static ACPI_STATUS	valz_acpi_lcd_brightness_get(struct valz_acpi_softc *,
-					uint32_t *);
-static ACPI_STATUS	valz_acpi_lcd_brightness_inc(struct valz_acpi_softc *);
-static ACPI_STATUS	valz_acpi_lcd_brightness_dec(struct valz_acpi_softc *);
-static ACPI_STATUS	valz_acpi_lcd_brightness_set(
-					struct valz_acpi_softc *, uint32_t);
 
 CFATTACH_DECL_NEW(valz_acpi, sizeof(struct valz_acpi_softc),
     valz_acpi_match, valz_acpi_attach, NULL, NULL);
@@ -422,81 +354,15 @@ valz_acpi_event(void *arg)
 	ACPI_STATUS rv;
 	uint32_t value, result;
 
-	aprint_normal("Enter to acpi_event\n");
-
 	while(1) {
 		rv = valz_acpi_hci_get(sc, HCI_GET, HCI_SYSTEM_EVENT_FIFO,
 			&value, &result);
 		if (ACPI_SUCCESS(rv) && result == 0) {
 			switch (value) {
-			case FN_ESC_PRESS:
-				/* Mute speaker */
-				aprint_normal("Fn+ESC\n");
-				break;
-			case FN_F1_PRESS:
-				/* Instant security */
-				aprint_normal("Fn+F1\n");
-				break;
-			case FN_F2_PRESS:
-				/* Toggle power plan */
-				aprint_normal("Fn+F2\n");
-				break;
-			case FN_F3_PRESS:
-				/* Sleep */
-				aprint_normal("Fn+F3\n");
-				break;
-			case FN_F4_PRESS:
-				/* Hibernate */
-				break;
-			case FN_F5_PRESS:
-				/* Toggle external/internal display */
-				break;
-			case FN_F6_PRESS:
-				/* Brightness down */
-				aprint_normal("Fn+F6\n");
-				valz_acpi_lcd_brightness_dec(sc);
-				break;
-			case FN_F7_PRESS:
-				/* Brightness up */
-				aprint_normal("Fn+F7\n");
-				valz_acpi_lcd_brightness_inc(sc);
-				break;
-			case FN_F8_PRESS:
-				/* Toggle WiFi and Bluetooth */
-				break;
 			case FN_F9_PRESS:
-				/* Toggle touchpad */
 				valz_acpi_touchpad_toggle(sc);
 				break;
-			case FN_F10_ON:
-				/* Enable arrow key mode */
-				break;
-			case FN_F10_OFF:
-				/* Disable arrow key mode */
-				break;
-			case FN_F11_ON:
-				/* Numlock on */
-				break;
-			case FN_F11_OFF:
-				/* Numlock off */
-				break;
-			case FN_KNJ_PRESS:
-				/* undefined */
-				break;
-			case FN_1_PRESS:
-				/* Zoom in */
-				break;
-			case FN_2_PRESS:
-				/* Zoom out */
-				break;
-			case FN_Z_PRESS:
-				/* Keyboard backlight */
-				break;
-			case FN_SPACE_PRESS:
-				/* Change display resolution */
-				break;
 			case FN_TAB_PRESS:
-				/* undefined */
 				valz_acpi_lcd_backlight_toggle(sc);
 				break;
 
@@ -771,104 +637,6 @@ valz_acpi_lcd_backlight_toggle(struct valz_acpi_softc *sc)
 	if (ACPI_FAILURE(rv))
 		aprint_error_dev(sc->sc_dev,
 				"Cannot set HCI LCD backlight status: %s\n",
-				AcpiFormatException(rv));
-
-	return rv;
-}
-
-/*
- * Get LCD brightness
- */
-static ACPI_STATUS
-valz_acpi_lcd_brightness_get(struct valz_acpi_softc *sc, uint32_t *brightness)
-{
-	ACPI_STATUS rv;
-	uint32_t result;
-
-	rv = valz_acpi_hci_get(sc, HCI_GET, HCI_LCD_BRIGHTNESS,
-				brightness, &result);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Cannot get HCI LCD brightness status: %s\n",
-				AcpiFormatException(rv));
-	aprint_normal("Get raw brightness: %x\n", *brightness);
-	*brightness >>= HCI_LCD_BRIGHTNESS_SFT;
-	aprint_normal("Get brightness: %x\n", *brightness);
-
-	return rv;
-}
-
-/*
- * Increase LCD brightness
- */
-static ACPI_STATUS
-valz_acpi_lcd_brightness_inc(struct valz_acpi_softc *sc)
-{
-	ACPI_STATUS rv;
-	uint32_t brightness;
-
-	rv = valz_acpi_lcd_brightness_get(sc, &brightness);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Cannot get HCI LCD brightness status: %s\n",
-				AcpiFormatException(rv));
-
-	if (brightness < HCI_LCD_BRIGHTNESS_MAX)
-		brightness++;
-	aprint_normal("Set brightness: %x\n", brightness);
-
-	rv = valz_acpi_lcd_brightness_set(sc, brightness);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Failed to increase HCI LCD brightness: %s\n",
-				AcpiFormatException(rv));
-
-	return rv;
-}
-
-/*
- * Decrease LCD brightness
- */
-static ACPI_STATUS
-valz_acpi_lcd_brightness_dec(struct valz_acpi_softc *sc)
-{
-	ACPI_STATUS rv;
-	uint32_t brightness;
-
-	rv = valz_acpi_lcd_brightness_get(sc, &brightness);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Cannot get HCI LCD brightness status: %s\n",
-				AcpiFormatException(rv));
-
-	if (HCI_LCD_BRIGHTNESS_MIN < brightness)
-		brightness--;
-	aprint_normal("Set brightness: %x\n", brightness);
-
-	rv = valz_acpi_lcd_brightness_set(sc, brightness);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Failed to decrease HCI LCD brightness: %s\n",
-				AcpiFormatException(rv));
-
-	return rv;
-}
-
-/*
- * Set LCD brightness
- */
-static ACPI_STATUS
-valz_acpi_lcd_brightness_set(struct valz_acpi_softc *sc, uint32_t brightness)
-{
-	ACPI_STATUS rv;
-	uint32_t result;
-
-	brightness <<= HCI_LCD_BRIGHTNESS_SFT;
-	rv = valz_acpi_hci_set(sc, HCI_SET, HCI_LCD_BRIGHTNESS,
-				brightness, &result);
-	if (ACPI_FAILURE(rv))
-		aprint_error_dev(sc->sc_dev,
-				"Cannot set HCI LCD brightness: %s\n",
 				AcpiFormatException(rv));
 
 	return rv;
